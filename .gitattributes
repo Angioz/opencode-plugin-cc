@@ -1,0 +1,7 @@
+# Force LF line endings for shell scripts (cross-platform safety)
+bin/opencode-delegate text eol=lf
+bin/opencode-jobs text eol=lf
+
+# Markdown and JSON use auto (platform-native on checkout is fine)
+*.md text=auto
+*.json text=auto
