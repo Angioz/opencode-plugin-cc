@@ -10,6 +10,23 @@
 set -e
 
 JOBS_DIR="${OPENCODE_JOBS_DIR:-$HOME/.opencode-jobs}"
+PLUGIN_CONFIG="$HOME/.opencode-plugin/config.sh"
+
+# Load provider config (API key + model) if it exists
+if [ -f "$PLUGIN_CONFIG" ]; then
+  # shellcheck source=/dev/null
+  . "$PLUGIN_CONFIG"
+else
+  echo "ERROR: OpenCode not configured."
+  echo "Run /opencode:setup to choose a provider, API key, and model."
+  exit 1
+fi
+
+# Pass model to opencode via -m flag if OPENCODE_MODEL is set
+MODEL_FLAG=""
+if [ -n "$OPENCODE_MODEL" ]; then
+  MODEL_FLAG="-m $OPENCODE_MODEL"
+fi
 
 # Check opencode is installed
 if ! command -v opencode > /dev/null 2>&1; then
@@ -38,7 +55,8 @@ fi
 
 # ── SYNC MODE ────────────────────────────────────────────────────────────────
 if [ "$BACKGROUND" = "0" ]; then
-  opencode run "$MESSAGE"
+  # shellcheck disable=SC2086
+  opencode run $MODEL_FLAG "$MESSAGE"
   exit $?
 fi
 
@@ -63,7 +81,8 @@ cat > "$META_FILE" <<METADATA
 METADATA
 
 # Fork the job
-opencode run "$MESSAGE" > "$LOG_FILE" 2>&1 &
+# shellcheck disable=SC2086
+opencode run $MODEL_FLAG "$MESSAGE" > "$LOG_FILE" 2>&1 &
 JOB_PID=$!
 
 # Update metadata with real PID
