@@ -1,0 +1,83 @@
+#!/bin/sh
+# opencode-delegate — delegate a task to OpenCode CLI
+# Usage: opencode-delegate [--background] "task message"
+#
+# Sync:       opencode-delegate "summarize src/components"
+# Background: opencode-delegate --background "find all TODOs"
+#
+# Background jobs stored in $OPENCODE_JOBS_DIR (default: ~/.opencode-jobs/)
+
+set -e
+
+JOBS_DIR="${OPENCODE_JOBS_DIR:-$HOME/.opencode-jobs}"
+
+# Check opencode is installed
+if ! command -v opencode > /dev/null 2>&1; then
+  echo "ERROR: OpenCode not found in PATH."
+  echo "Install it with:  npm install -g opencode-ai"
+  echo "Then run:         /opencode:setup  to verify."
+  exit 1
+fi
+
+# Parse --background flag
+BACKGROUND=0
+if [ "$1" = "--background" ]; then
+  BACKGROUND=1
+  shift
+fi
+
+# Remaining args are the message
+MESSAGE="$*"
+
+if [ -z "$MESSAGE" ]; then
+  echo "Usage: opencode-delegate [--background] \"task message\""
+  echo "  Sync:       opencode-delegate \"summarize src/components\""
+  echo "  Background: opencode-delegate --background \"find all TODOs\""
+  exit 1
+fi
+
+# ── SYNC MODE ────────────────────────────────────────────────────────────────
+if [ "$BACKGROUND" = "0" ]; then
+  opencode run "$MESSAGE"
+  exit $?
+fi
+
+# ── BACKGROUND MODE ──────────────────────────────────────────────────────────
+mkdir -p "$JOBS_DIR"
+
+# Generate job ID: timestamp-pid
+JOB_ID="$(date +%s)-$$"
+LOG_FILE="$JOBS_DIR/$JOB_ID.log"
+META_FILE="$JOBS_DIR/$JOB_ID.json"
+STARTED_AT="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+
+# Write initial metadata (pid will be updated after fork)
+cat > "$META_FILE" <<METADATA
+{
+  "id": "$JOB_ID",
+  "status": "running",
+  "message": $(printf '%s' "$MESSAGE" | awk 'BEGIN{ORS=""} {gsub(/"/,"\\\""); print "\""$0"\""}'),
+  "started_at": "$STARTED_AT",
+  "pid": null
+}
+METADATA
+
+# Fork the job
+opencode run "$MESSAGE" > "$LOG_FILE" 2>&1 &
+JOB_PID=$!
+
+# Update metadata with real PID
+cat > "$META_FILE" <<METADATA
+{
+  "id": "$JOB_ID",
+  "status": "running",
+  "message": $(printf '%s' "$MESSAGE" | awk 'BEGIN{ORS=""} {gsub(/"/,"\\\""); print "\""$0"\""}'),
+  "started_at": "$STARTED_AT",
+  "pid": $JOB_PID
+}
+METADATA
+
+echo "Job started: $JOB_ID"
+echo "Check progress:  opencode-jobs status $JOB_ID"
+echo "Get result:      opencode-jobs result $JOB_ID"
+echo "Cancel:          opencode-jobs cancel $JOB_ID"

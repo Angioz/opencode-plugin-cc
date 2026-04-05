@@ -1,0 +1,12 @@
+{
+  "name": "opencode",
+  "description": "Delegate tasks to OpenCode for token-efficient codebase exploration, search, and docs updates",
+  "version": "0.1.0",
+  "author": {
+    "name": "Angio",
+    "url": "https://github.com/Angioz"
+  },
+  "homepage": "https://github.com/Angioz/opencode-plugin-cc",
+  "repository": "https://github.com/Angioz/opencode-plugin-cc",
+  "license": "MIT"
+}

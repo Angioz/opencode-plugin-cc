@@ -1,0 +1,205 @@
+#!/bin/sh
+# opencode-jobs — manage OpenCode background jobs
+# Usage:
+#   opencode-jobs list                 list all jobs
+#   opencode-jobs status [JOB_ID]      check job status (updates if complete)
+#   opencode-jobs result [JOB_ID]      print job output log
+#   opencode-jobs cancel [JOB_ID]      kill a running job
+
+JOBS_DIR="${OPENCODE_JOBS_DIR:-$HOME/.opencode-jobs}"
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+job_meta() {
+  echo "$JOBS_DIR/$1.json"
+}
+
+job_log() {
+  echo "$JOBS_DIR/$1.log"
+}
+
+# Read a field from a job's JSON metadata (portable, no jq required)
+read_field() {
+  META_FILE="$(job_meta "$1")"
+  FIELD="$2"
+  grep "\"$FIELD\"" "$META_FILE" | sed 's/.*"'"$FIELD"'": *//; s/[",]//g; s/^ *//; s/ *$//'
+}
+
+# Check if a PID is still running
+pid_running() {
+  PID="$1"
+  [ -n "$PID" ] && [ "$PID" != "null" ] && kill -0 "$PID" 2>/dev/null
+}
+
+# Update job status in metadata file
+update_status() {
+  META_FILE="$(job_meta "$1")"
+  NEW_STATUS="$2"
+  if [ -f "$META_FILE" ]; then
+    # Replace status field inline (portable sed)
+    sed -i "s/\"status\": \"[^\"]*\"/\"status\": \"$NEW_STATUS\"/" "$META_FILE"
+  fi
+}
+
+# Resolve job ID: if empty, find the most recent job
+resolve_job_id() {
+  if [ -n "$1" ]; then
+    echo "$1"
+    return
+  fi
+  # Find most recent .json by modification time
+  ls -t "$JOBS_DIR"/*.json 2>/dev/null | head -1 | sed 's|.*/||; s|\.json$||'
+}
+
+# ── Commands ──────────────────────────────────────────────────────────────────
+
+cmd_list() {
+  if [ ! -d "$JOBS_DIR" ] || [ -z "$(ls "$JOBS_DIR"/*.json 2>/dev/null)" ]; then
+    echo "No jobs found. Start one with: /opencode:run --background [task]"
+    return 0
+  fi
+
+  printf "%-25s %-10s %-30s %s\n" "JOB ID" "STATUS" "STARTED" "TASK"
+  printf "%-25s %-10s %-30s %s\n" "-------------------------" "----------" "------------------------------" "----"
+
+  for META_FILE in $(ls -t "$JOBS_DIR"/*.json 2>/dev/null); do
+    JOB_ID="$(basename "$META_FILE" .json)"
+    STATUS="$(read_field "$JOB_ID" "status")"
+    STARTED="$(read_field "$JOB_ID" "started_at")"
+    MESSAGE="$(read_field "$JOB_ID" "message")"
+    PID="$(read_field "$JOB_ID" "pid")"
+
+    # Auto-update status if process no longer running
+    if [ "$STATUS" = "running" ] && ! pid_running "$PID"; then
+      update_status "$JOB_ID" "complete"
+      STATUS="complete"
+    fi
+
+    # Truncate message for display
+    SHORT_MSG="$(echo "$MESSAGE" | cut -c1-50)"
+    printf "%-25s %-10s %-30s %s\n" "$JOB_ID" "$STATUS" "$STARTED" "$SHORT_MSG"
+  done
+}
+
+cmd_status() {
+  JOB_ID="$(resolve_job_id "$1")"
+  if [ -z "$JOB_ID" ]; then
+    echo "No jobs found."
+    return 0
+  fi
+
+  META_FILE="$(job_meta "$JOB_ID")"
+  if [ ! -f "$META_FILE" ]; then
+    echo "ERROR: Job not found: $JOB_ID"
+    echo "Run 'opencode-jobs list' to see available jobs."
+    return 1
+  fi
+
+  STATUS="$(read_field "$JOB_ID" "status")"
+  PID="$(read_field "$JOB_ID" "pid")"
+  MESSAGE="$(read_field "$JOB_ID" "message")"
+  STARTED="$(read_field "$JOB_ID" "started_at")"
+
+  # Check if still running
+  if [ "$STATUS" = "running" ]; then
+    if pid_running "$PID"; then
+      echo "Status:  running (PID $PID)"
+    else
+      update_status "$JOB_ID" "complete"
+      STATUS="complete"
+      echo "Status:  complete (process finished)"
+    fi
+  else
+    echo "Status:  $STATUS"
+  fi
+
+  echo "Job ID:  $JOB_ID"
+  echo "Task:    $MESSAGE"
+  echo "Started: $STARTED"
+
+  LOG="$(job_log "$JOB_ID")"
+  if [ -f "$LOG" ]; then
+    LINES="$(wc -l < "$LOG")"
+    echo "Output:  $LINES lines in log — run 'opencode-jobs result $JOB_ID' to read"
+  fi
+}
+
+cmd_result() {
+  JOB_ID="$(resolve_job_id "$1")"
+  if [ -z "$JOB_ID" ]; then
+    echo "No jobs found. Start one with: /opencode:run --background [task]"
+    return 0
+  fi
+
+  META_FILE="$(job_meta "$JOB_ID")"
+  if [ ! -f "$META_FILE" ]; then
+    echo "ERROR: Job not found: $JOB_ID"
+    return 1
+  fi
+
+  LOG="$(job_log "$JOB_ID")"
+  if [ ! -f "$LOG" ]; then
+    echo "ERROR: Log file not found for job $JOB_ID"
+    return 1
+  fi
+
+  STATUS="$(read_field "$JOB_ID" "status")"
+  PID="$(read_field "$JOB_ID" "pid")"
+  if [ "$STATUS" = "running" ] && pid_running "$PID"; then
+    echo "NOTE: Job still running — showing partial output so far."
+    echo "------"
+  fi
+
+  cat "$LOG"
+}
+
+cmd_cancel() {
+  JOB_ID="$(resolve_job_id "$1")"
+  if [ -z "$JOB_ID" ]; then
+    echo "No jobs found."
+    return 0
+  fi
+
+  META_FILE="$(job_meta "$JOB_ID")"
+  if [ ! -f "$META_FILE" ]; then
+    echo "ERROR: Job not found: $JOB_ID"
+    return 1
+  fi
+
+  STATUS="$(read_field "$JOB_ID" "status")"
+  PID="$(read_field "$JOB_ID" "pid")"
+
+  if [ "$STATUS" != "running" ]; then
+    echo "Job $JOB_ID is not running (status: $STATUS)"
+    return 0
+  fi
+
+  if pid_running "$PID"; then
+    kill "$PID" 2>/dev/null && echo "Cancelled job $JOB_ID (killed PID $PID)" || echo "Could not kill PID $PID"
+    update_status "$JOB_ID" "cancelled"
+  else
+    echo "Job $JOB_ID process already finished — marking complete."
+    update_status "$JOB_ID" "complete"
+  fi
+}
+
+# ── Dispatch ──────────────────────────────────────────────────────────────────
+
+SUBCOMMAND="${1:-list}"
+shift 2>/dev/null || true
+JOB_ARG="${1:-}"
+
+case "$SUBCOMMAND" in
+  list)    cmd_list ;;
+  status)  cmd_status "$JOB_ARG" ;;
+  result)  cmd_result "$JOB_ARG" ;;
+  cancel)  cmd_cancel "$JOB_ARG" ;;
+  *)
+    echo "Usage: opencode-jobs [list|status|result|cancel] [job-id]"
+    echo "  list              — show all jobs"
+    echo "  status [JOB_ID]  — check a specific job (defaults to latest)"
+    echo "  result [JOB_ID]  — print job output (defaults to latest)"
+    echo "  cancel [JOB_ID]  — kill a running job (defaults to latest)"
+    exit 1
+    ;;
+esac
