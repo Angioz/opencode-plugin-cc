@@ -2,67 +2,62 @@
 
 Delegate tasks to [OpenCode](https://opencode.ai) from inside Claude Code — for token-efficient codebase exploration, file analysis, and docs updates.
 
-This plugin is for Claude Code users who want to offload heavy read/search tasks to a separate OpenCode session, keeping their main Claude Code context window clean and focused.
+When Claude Code's context window fills up on large codebases, offload heavy tasks to a separate OpenCode session. Results come back as a summary without consuming your main context.
 
-## What You Get
+## Commands
 
 | Command | Description |
 |---------|-------------|
-| `/opencode:setup` | Check OpenCode installation and provider configuration |
-| `/opencode:run [task]` | Delegate a task to OpenCode (sync or `--background`) |
+| `/opencode:setup` | Interactive wizard — choose provider, model, and store API key securely |
+| `/opencode:run [task]` | Delegate a task to OpenCode (sync by default, or `--background`) |
 | `/opencode:status [job-id]` | Check status of background jobs |
 | `/opencode:result [job-id]` | Get output from a completed background job |
 | `/opencode:cancel [job-id]` | Cancel a running background job |
 
-## Why Use This
-
-Claude Code's context window fills up fast on large codebases. When you need to:
-- Search for symbols or patterns across many files
-- Read and summarize large directories
-- Update documentation files
-- Run exploratory tasks without polluting your main context
-
-...delegate to OpenCode instead. Results come back as a summary without consuming your Claude Code context.
-
-## Requirements
-
-- [Claude Code](https://claude.ai/code) installed and authenticated
-- [OpenCode](https://opencode.ai) installed: `npm install -g opencode-ai`
-- OpenCode configured with at least one provider (Anthropic, OpenAI, etc.)
-
 ## Install
 
-Add this plugin to Claude Code via `--plugin-dir` for local use:
-
+**Step 1** — Install [OpenCode](https://opencode.ai):
 ```bash
-claude --plugin-dir ./opencode-plugin-cc
+npm install -g opencode-ai
 ```
 
-Or install from the marketplace (coming soon):
-
-```bash
+**Step 2** — Add the marketplace and install the plugin in Claude Code:
+```
 /plugin marketplace add Angioz/opencode-plugin-cc
-/plugin install opencode@Angioz-opencode
+/plugin install opencode@angioz-opencode
 /reload-plugins
 ```
 
-Then run `/opencode:setup` to verify everything is ready.
+**Step 3** — Run the setup wizard:
+```
+/opencode:setup
+```
+
+The wizard will ask which provider and model to use, then prompt you to enter your API key **directly in your terminal** (never in the chat) using hidden input.
+
+### Developer / local testing
+
+```bash
+claude --plugin-dir ./plugins/opencode
+```
 
 ## Usage
 
 ### `/opencode:setup`
 
-Checks whether OpenCode is installed and has a configured provider.
+Interactive wizard that walks through:
+1. Provider selection (Anthropic, OpenAI, Google, Groq, Ollama, or custom)
+2. Model selection with recommended defaults per provider
+3. Secure API key entry via terminal `read -s` — key never appears in the chat
+4. Smoke test to confirm everything works
 
-```bash
-/opencode:setup
-```
+Re-run any time to reconfigure.
 
 ### `/opencode:run`
 
-Delegates a task to OpenCode. Runs synchronously by default — Claude Code waits for the result and summarizes it.
+Delegates a task to OpenCode synchronously — Claude Code waits for the result and summarizes it.
 
-```bash
+```
 /opencode:run summarize the src/components/ directory structure
 /opencode:run find all TODO and FIXME comments in the codebase
 /opencode:run update the API docs in docs/api.md to match the current routes
@@ -70,64 +65,71 @@ Delegates a task to OpenCode. Runs synchronously by default — Claude Code wait
 
 Use `--background` for long-running tasks:
 
-```bash
-/opencode:run --background analyze the full test suite and identify gaps
+```
+/opencode:run --background audit all API routes for missing input validation
 ```
 
-Returns a job ID immediately. Use `/opencode:status` to check progress.
+Returns a job ID immediately. Check progress with `/opencode:status`.
 
 ### `/opencode:status`
 
-Shows all background jobs, or checks a specific job.
-
-```bash
-/opencode:status
-/opencode:status 1712345678-1234
+```
+/opencode:status                    # list all jobs
+/opencode:status 1712345678-1234    # check a specific job
 ```
 
 ### `/opencode:result`
 
-Gets the full output of a completed background job.
-
-```bash
-/opencode:result
-/opencode:result 1712345678-1234
+```
+/opencode:result                    # result of the most recent job
+/opencode:result 1712345678-1234    # result of a specific job
 ```
 
 ### `/opencode:cancel`
 
-Cancels a running background job.
-
-```bash
-/opencode:cancel
-/opencode:cancel 1712345678-1234
+```
+/opencode:cancel                    # cancel the most recent running job
+/opencode:cancel 1712345678-1234    # cancel a specific job
 ```
 
 ## Typical Flows
 
 ### Quick codebase question (sync)
 
-```bash
+```
 /opencode:run list all exported functions in src/lib/ with their signatures
 ```
 
 ### Long analysis in background
 
-```bash
+```
 /opencode:run --background audit all API routes for missing input validation
 /opencode:status
-# ... do other work ...
+# ... continue working in Claude Code ...
 /opencode:result
 ```
 
 ## How It Works
 
-The plugin uses `opencode run [message]` under the hood — OpenCode's headless one-shot execution mode. Background jobs are tracked via simple shell job files in `~/.opencode-jobs/`. No daemon, no database — just shell scripts and files.
+- Provider config and API key are stored in `~/.opencode-plugin/config.sh` (chmod 600)
+- The plugin uses `opencode run -m [model] [message]` for one-shot headless execution
+- Background jobs are tracked as JSON + log files in `~/.opencode-jobs/`
+- Zero dependencies — pure POSIX shell scripts, no npm install required
 
-## Configuration
+## Security
 
-OpenCode picks up your existing provider config (`~/.config/opencode/` or environment variables like `ANTHROPIC_API_KEY`). To use a specific model, configure it in your OpenCode settings before delegating.
+API keys are **never** handled through the Claude Code chat. During `/opencode:setup`, the plugin generates a `read -s` terminal command for you to run with the `!` prefix. The key is entered with hidden input directly in your terminal and written to `~/.opencode-plugin/config.sh` with `600` permissions.
+
+## Supported Providers
+
+| Provider | Env Var |
+|----------|---------|
+| Anthropic | `ANTHROPIC_API_KEY` |
+| OpenAI | `OPENAI_API_KEY` |
+| Google | `GOOGLE_API_KEY` |
+| Groq | `GROQ_API_KEY` |
+| Ollama | (no key needed) |
 
 ## License
 
-MIT — see [LICENSE](LICENSE)
+MIT
