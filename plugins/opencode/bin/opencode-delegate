@@ -18,10 +18,15 @@ if ! command -v opencode > /dev/null 2>&1; then
   exit 1
 fi
 
-# Load model config if available
+# Load model config — try bash config first, then PowerShell config
+PS_CONFIG="$HOME/.opencode-plugin/config.ps1"
 if [ -f "$PLUGIN_CONFIG" ]; then
   # shellcheck source=/dev/null
   . "$PLUGIN_CONFIG"
+elif [ -f "$PS_CONFIG" ]; then
+  # Extract OPENCODE_MODEL from PowerShell config (e.g. $env:OPENCODE_MODEL = "value")
+  OPENCODE_MODEL=$(grep 'OPENCODE_MODEL' "$PS_CONFIG" | sed "s/.*= *['\"]//;s/['\"].*//")
+  export OPENCODE_MODEL
 fi
 
 # Build model flag
