@@ -2,38 +2,35 @@
 # opencode-delegate — delegate a task to OpenCode CLI
 # Usage: opencode-delegate [--background] "task message"
 #
-# Sync:       opencode-delegate "summarize src/components"
-# Background: opencode-delegate --background "find all TODOs"
+# Auth is managed by OpenCode natively via: opencode providers login
+# This script only reads OPENCODE_MODEL from ~/.opencode-plugin/config.sh
 #
-# Background jobs stored in $OPENCODE_JOBS_DIR (default: ~/.opencode-jobs/)
-
-set -e
+# Run /opencode:setup first to configure provider + model.
 
 JOBS_DIR="${OPENCODE_JOBS_DIR:-$HOME/.opencode-jobs}"
 PLUGIN_CONFIG="$HOME/.opencode-plugin/config.sh"
 
-# Load provider config (API key + model) if it exists
-if [ -f "$PLUGIN_CONFIG" ]; then
-  # shellcheck source=/dev/null
-  . "$PLUGIN_CONFIG"
-else
-  echo "ERROR: OpenCode not configured."
-  echo "Run /opencode:setup to choose a provider, API key, and model."
-  exit 1
-fi
-
-# Pass model to opencode via -m flag if OPENCODE_MODEL is set
-MODEL_FLAG=""
-if [ -n "$OPENCODE_MODEL" ]; then
-  MODEL_FLAG="-m $OPENCODE_MODEL"
-fi
-
 # Check opencode is installed
 if ! command -v opencode > /dev/null 2>&1; then
   echo "ERROR: OpenCode not found in PATH."
-  echo "Install it with:  npm install -g opencode-ai"
-  echo "Then run:         /opencode:setup  to verify."
+  echo "Install: npm install -g opencode-ai"
+  echo "Then run /opencode:setup to configure."
   exit 1
+fi
+
+# Load model config if available
+if [ -f "$PLUGIN_CONFIG" ]; then
+  # shellcheck source=/dev/null
+  . "$PLUGIN_CONFIG"
+fi
+
+# Build model flag
+MODEL_FLAG=""
+if [ -n "$OPENCODE_MODEL" ]; then
+  MODEL_FLAG="-m $OPENCODE_MODEL"
+else
+  echo "WARNING: No model configured. Run /opencode:setup to pick one."
+  echo "Proceeding with OpenCode's default model."
 fi
 
 # Parse --background flag
@@ -43,7 +40,6 @@ if [ "$1" = "--background" ]; then
   shift
 fi
 
-# Remaining args are the message
 MESSAGE="$*"
 
 if [ -z "$MESSAGE" ]; then
@@ -63,13 +59,11 @@ fi
 # ── BACKGROUND MODE ──────────────────────────────────────────────────────────
 mkdir -p "$JOBS_DIR"
 
-# Generate job ID: timestamp-pid
 JOB_ID="$(date +%s)-$$"
 LOG_FILE="$JOBS_DIR/$JOB_ID.log"
 META_FILE="$JOBS_DIR/$JOB_ID.json"
 STARTED_AT="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
 
-# Write initial metadata (pid will be updated after fork)
 cat > "$META_FILE" <<METADATA
 {
   "id": "$JOB_ID",
@@ -80,12 +74,10 @@ cat > "$META_FILE" <<METADATA
 }
 METADATA
 
-# Fork the job
 # shellcheck disable=SC2086
 opencode run $MODEL_FLAG "$MESSAGE" > "$LOG_FILE" 2>&1 &
 JOB_PID=$!
 
-# Update metadata with real PID
 cat > "$META_FILE" <<METADATA
 {
   "id": "$JOB_ID",
@@ -97,6 +89,6 @@ cat > "$META_FILE" <<METADATA
 METADATA
 
 echo "Job started: $JOB_ID"
-echo "Check progress:  opencode-jobs status $JOB_ID"
-echo "Get result:      opencode-jobs result $JOB_ID"
-echo "Cancel:          opencode-jobs cancel $JOB_ID"
+echo "Check:   opencode-jobs status $JOB_ID"
+echo "Result:  opencode-jobs result $JOB_ID"
+echo "Cancel:  opencode-jobs cancel $JOB_ID"
