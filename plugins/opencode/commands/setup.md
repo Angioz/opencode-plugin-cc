@@ -41,7 +41,11 @@ test -s ~/.opencode-plugin/config.sh && cat ~/.opencode-plugin/config.sh || echo
 if (Test-Path "$env:USERPROFILE\.opencode-plugin\config.ps1") { Get-Content "$env:USERPROFILE\.opencode-plugin\config.ps1" } else { "MISSING" }
 ```
 
-If config exists: show current model, ask "Reconfigure? (yes/no)". If no — stop.
+If config exists: show the current model line, then use the **AskUserQuestion tool** with:
+- question: "OpenCode is already configured. What would you like to do?"
+- options: "Use current config (exit setup)" / "Reconfigure (overwrite existing)"
+
+If user selects "Use current config": say "Ready. Use `/opencode:run [task]`." and stop.
 
 ---
 
@@ -56,17 +60,15 @@ Run: `opencode --version 2>&1`
 
 ## Step 3 — Choose a provider
 
-Ask:
+Use the **AskUserQuestion tool** with:
+- question: "Which AI provider should OpenCode use?"
+- options:
+  - "Anthropic" / description: "Claude models — ANTHROPIC_API_KEY"
+  - "OpenAI" / description: "GPT models — OPENAI_API_KEY"
+  - "OpenRouter" / description: "100+ models with one key — OPENROUTER_API_KEY"
+  - "Google" / description: "Gemini models — GOOGLE_API_KEY"
 
-> Which provider should OpenCode use?
->
-> 1. Anthropic
-> 2. OpenAI
-> 3. OpenRouter (100+ models, one key)
-> 4. Google
-> 5. Groq
-> 6. Ollama (local, no key needed)
-> 7. Other — I'll type the provider ID
+If the user selects "Other" or needs Groq/Ollama, accept a free-text answer via the "Other" option that AskUserQuestion provides automatically.
 
 Map to OpenCode provider IDs:
 
@@ -106,9 +108,11 @@ Tell the user to run this to see valid model IDs (works on all platforms):
 ! opencode models [PROVIDER_ID] 2>&1 | head -50
 ```
 
-Ask them to copy the **exact** model ID from the output (including any `:free` suffix or version). Do not guess — use only what appears in the list.
+After showing the list, use the **AskUserQuestion tool** with:
+- question: "Which model ID do you want to use? Copy the exact ID from the list above."
+- options: "I'll type it" (the user will type the exact ID in the Other field)
 
-Wait for their selection. Store as `MODEL_ID`.
+Accept whatever the user types via the "Other" field. Do not guess or suggest — use only what they provide. Store as `MODEL_ID`.
 Full model string: `[PROVIDER_ID]/[MODEL_ID]`
 
 ---
