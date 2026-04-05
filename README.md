@@ -8,7 +8,7 @@ When Claude Code's context window fills up on large codebases, offload heavy tas
 
 | Command | Description |
 |---------|-------------|
-| `/opencode:setup` | Interactive wizard — choose provider, model, and store API key securely |
+| `/opencode:setup` | Interactive wizard — choose provider, authenticate in terminal, select model from live CLI output |
 | `/opencode:run [task]` | Delegate a task to OpenCode (sync by default, or `--background`) |
 | `/opencode:status [job-id]` | Check status of background jobs |
 | `/opencode:result [job-id]` | Get output from a completed background job |
@@ -33,7 +33,7 @@ npm install -g opencode-ai
 /opencode:setup
 ```
 
-The wizard will ask which provider and model to use, then prompt you to enter your API key **directly in your terminal** (never in the chat) using hidden input.
+The wizard guides you through provider selection, authenticates via `opencode providers login` in your terminal (API key never in chat), then picks a model from real CLI output.
 
 ### Developer / local testing
 
@@ -46,10 +46,14 @@ claude --plugin-dir ./plugins/opencode
 ### `/opencode:setup`
 
 Interactive wizard that walks through:
-1. Provider selection (Anthropic, OpenAI, Google, Groq, Ollama, or custom)
-2. Model selection with recommended defaults per provider
-3. Secure API key entry via terminal `read -s` — key never appears in the chat
-4. Smoke test to confirm everything works
+
+1. **Shell detection** — detects bash vs PowerShell for correct command variants
+2. **Config check** — skips re-setup if already configured (or lets you reconfigure)
+3. **Provider selection** — choose from a menu with free-tier info and key URLs
+4. **Authentication** — runs `! opencode providers login -p [provider]` in your terminal; API key entered interactively, never in chat
+5. **Model selection** — Claude runs `opencode models [provider]`, parses the live output, and presents real model IDs via a widget
+6. **Config save** — writes `OPENCODE_MODEL` to `~/.opencode-plugin/config.sh` (model string only, no API key)
+7. **Smoke test** — verifies everything works end-to-end
 
 Re-run any time to reconfigure.
 
@@ -111,24 +115,28 @@ Returns a job ID immediately. Check progress with `/opencode:status`.
 
 ## How It Works
 
-- Provider config and API key are stored in `~/.opencode-plugin/config.sh` (chmod 600)
+- The plugin stores `OPENCODE_MODEL` in `~/.opencode-plugin/config.sh` (chmod 600) — model string only, no credentials
+- API keys are managed entirely by OpenCode via `opencode providers login` — stored in `~/.local/share/opencode/auth.json`
 - The plugin uses `opencode run -m [model] [message]` for one-shot headless execution
 - Background jobs are tracked as JSON + log files in `~/.opencode-jobs/`
 - Zero dependencies — pure POSIX shell scripts, no npm install required
 
 ## Security
 
-API keys are **never** handled through the Claude Code chat. During `/opencode:setup`, the plugin generates a `read -s` terminal command for you to run with the `!` prefix. The key is entered with hidden input directly in your terminal and written to `~/.opencode-plugin/config.sh` with `600` permissions.
+**API keys never pass through the Claude Code chat conversation** — not as user input, not as Claude output, not as command arguments.
+
+During `/opencode:setup`, you run `! opencode providers login -p [provider]` in your terminal. OpenCode handles the interactive key prompt itself and stores credentials in its own secure store (`~/.local/share/opencode/auth.json`). The plugin only reads the model choice it saved during setup.
 
 ## Supported Providers
 
-| Provider | Env Var |
-|----------|---------|
-| Anthropic | `ANTHROPIC_API_KEY` |
-| OpenAI | `OPENAI_API_KEY` |
-| Google | `GOOGLE_API_KEY` |
-| Groq | `GROQ_API_KEY` |
-| Ollama | (no key needed) |
+| Provider | Free tier | Key URL |
+|----------|-----------|---------|
+| OpenRouter | Yes — 26 free models | openrouter.ai/keys |
+| Google | Yes — Gemini free tier | aistudio.google.com/apikey |
+| Groq | Yes — rate-limited | console.groq.com/keys |
+| Anthropic | No | console.anthropic.com/keys |
+| OpenAI | No | platform.openai.com/api-keys |
+| Ollama | N/A (local) | — |
 
 ## License
 
