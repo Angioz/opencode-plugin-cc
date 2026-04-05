@@ -1,0 +1,25 @@
+{
+  "name": "angioz-opencode",
+  "owner": {
+    "name": "Angio",
+    "email": "gianluca.angioletti95@gmail.com"
+  },
+  "metadata": {
+    "description": "OpenCode integration for Claude Code — delegate heavy tasks to a separate AI session to keep your context window clean"
+  },
+  "plugins": [
+    {
+      "name": "opencode",
+      "source": "./plugins/opencode",
+      "description": "Delegate codebase search, file analysis, and docs updates to OpenCode for token-efficient AI workflows",
+      "version": "0.1.0",
+      "author": {
+        "name": "Angio"
+      },
+      "homepage": "https://github.com/Angioz/opencode-plugin-cc",
+      "repository": "https://github.com/Angioz/opencode-plugin-cc",
+      "license": "MIT",
+      "keywords": ["opencode", "token-optimization", "delegation", "codebase", "ai-workflow"]
+    }
+  ]
+}

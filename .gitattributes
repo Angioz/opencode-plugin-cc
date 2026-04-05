@@ -5,3 +5,5 @@ bin/opencode-jobs text eol=lf
 # Markdown and JSON use auto (platform-native on checkout is fine)
 *.md text=auto
 *.json text=auto
+plugins/opencode/bin/opencode-delegate text eol=lf
+plugins/opencode/bin/opencode-jobs text eol=lf
