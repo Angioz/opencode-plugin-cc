@@ -179,65 +179,152 @@ If user reports an error:
 
 ---
 
-## Step 5 — List and Select Model
+## Step 5 — List and Select Model (Free Battery System)
 
-Run this command using the Bash tool (you run it — not the user — to parse the output):
+Run BOTH of these commands using the Bash tool (you run them — not the user):
 
 ```bash
-opencode models [PROVIDER_ID] 2>&1
+opencode models openrouter 2>&1 | grep ":free"
 ```
 
-Replace `[PROVIDER_ID]` with the actual provider ID stored from Step 3.
+```bash
+opencode models 2>&1 | grep "^opencode/"
+```
 
-Parse the output:
-- Output format: one model ID per line (e.g. `openrouter/qwen/qwen3.6-plus:free`)
-- Select the top 3 most relevant models from the output. Criteria:
-  - Prefer models with coding/instruction capabilities
-  - Prefer `:free` models if the provider has them (OpenRouter, Google)
-  - Prefer well-known vendors (google, meta-llama, qwen, deepseek)
+Parse both outputs:
+- **Free OpenRouter models**: lines ending in `:free` — pick top 8, prefer qwen, deepseek, meta-llama, google vendors
+- **OpenCode native models**: lines starting with `opencode/` — pick top 4
 
-If the provider has no direct models (e.g. `anthropic` models live under `openrouter/anthropic/...`):
-- Run `opencode models` (no provider filter) using the Bash tool and grep for the provider name
-- If still no results: tell user this provider may need to be accessed via OpenRouter
+Split the 8 free OpenRouter models into two batteries of 4. Present **Battery 1 first**.
 
-You MUST call the AskUserQuestion tool with this exact structure, substituting REAL model IDs from the command output above:
+---
+
+### Battery 1 — Free models (top 4)
+
+You MUST call the AskUserQuestion tool with EXACTLY this structure, substituting REAL model IDs from the grep output:
 
 ```json
 {
   "questions": [{
-    "question": "Which model should OpenCode use? (from opencode models output)",
-    "header": "Model",
+    "question": "Which free model should OpenCode use? (Battery 1 of 3)",
+    "header": "Free",
     "multiSelect": false,
     "options": [
       {
         "label": "[model-id-1] (Recommended)",
-        "description": "[vendor] — [brief note: free/paid, capability]"
+        "description": "[vendor] — free, coding/instruction"
       },
       {
         "label": "[model-id-2]",
-        "description": "[vendor] — [brief note]"
+        "description": "[vendor] — free"
       },
       {
         "label": "[model-id-3]",
-        "description": "[vendor] — [brief note]"
+        "description": "[vendor] — free"
+      },
+      {
+        "label": "See 4 more free models →",
+        "description": "Show next battery of free models"
       }
     ]
   }]
 }
 ```
 
-The options MUST contain exact model IDs copied from the `opencode models` output. Do NOT guess or hardcode model names.
+- If user selects a model ID → store as `MODEL_ID`, skip to Step 6.
+- If user selects "See 4 more free models →" → present Battery 2 below.
+- If user types a custom ID via "Other" → validate (see validation rule below).
 
-If user enters a custom model ID via the "Other" field:
-- Check if it appears in the `opencode models` output
-- If found: accept it
-- If NOT found: print "That model ID wasn't found in the available models. Here's the full list:" then run this command using the Bash tool:
+---
+
+### Battery 2 — Free models (next 4)
+
+You MUST call the AskUserQuestion tool with EXACTLY this structure:
+
+```json
+{
+  "questions": [{
+    "question": "Which free model should OpenCode use? (Battery 2 of 3)",
+    "header": "Free 2",
+    "multiSelect": false,
+    "options": [
+      {
+        "label": "[model-id-5]",
+        "description": "[vendor] — free"
+      },
+      {
+        "label": "[model-id-6]",
+        "description": "[vendor] — free"
+      },
+      {
+        "label": "[model-id-7]",
+        "description": "[vendor] — free"
+      },
+      {
+        "label": "See OpenCode free models →",
+        "description": "Show OpenCode native models (also free)"
+      }
+    ]
+  }]
+}
+```
+
+- If user selects a model ID → store as `MODEL_ID`, skip to Step 6.
+- If user selects "See OpenCode free models →" → present Battery 3 below.
+
+---
+
+### Battery 3 — OpenCode native models
+
+You MUST call the AskUserQuestion tool with EXACTLY this structure, substituting REAL model IDs from the `grep "^opencode/"` output:
+
+```json
+{
+  "questions": [{
+    "question": "Which OpenCode native model should OpenCode use? (Battery 3 of 3)",
+    "header": "OpenCode",
+    "multiSelect": false,
+    "options": [
+      {
+        "label": "[opencode/model-1] (Recommended)",
+        "description": "OpenCode native — free with OpenCode Zen account"
+      },
+      {
+        "label": "[opencode/model-2]",
+        "description": "OpenCode native — free"
+      },
+      {
+        "label": "[opencode/model-3]",
+        "description": "OpenCode native — free"
+      },
+      {
+        "label": "Enter model ID manually",
+        "description": "Type any model ID from opencode models output"
+      }
+    ]
+  }]
+}
+```
+
+- If user selects a model ID → store as `MODEL_ID`, skip to Step 6.
+- If user selects "Enter model ID manually" → accept via "Other" text input.
+
+---
+
+### Custom model ID validation
+
+If user types a custom model ID at any battery:
+- Run this command using the Bash tool: `opencode models openrouter 2>&1 | grep "[typed-id]"`
+- If found: accept it as `MODEL_ID`
+- If NOT found: print "That model ID wasn't found. Here's the full free list:" then run:
   ```bash
-  opencode models [PROVIDER_ID] 2>&1 | head -40
+  opencode models openrouter 2>&1 | grep ":free"
   ```
-  Then You MUST call the AskUserQuestion tool again with updated options from the output.
+  Then You MUST call the AskUserQuestion tool again from Battery 1.
 
-Store `MODEL_ID` = the exact full model ID string from the output (e.g. `openrouter/qwen/qwen3.6-plus:free`).
+---
+
+Store `MODEL_ID` = the exact full model ID string (e.g. `openrouter/qwen/qwen3.6-plus:free`).
 
 ---
 
