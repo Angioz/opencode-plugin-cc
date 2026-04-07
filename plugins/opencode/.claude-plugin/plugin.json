@@ -1,7 +1,7 @@
 {
   "name": "opencode",
   "description": "Delegate tasks to OpenCode for token-efficient codebase exploration, search, and docs updates",
-  "version": "0.1.0",
+  "version": "1.5.2",
   "author": {
     "name": "Angio",
     "url": "https://github.com/Angioz"

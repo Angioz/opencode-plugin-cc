@@ -43,12 +43,14 @@ description: Delegate a task to OpenCode. Add --background for async execution. 
 <ATOMIC_STEP_3>
 - **ACTION:** Run this command using the Bash tool. This is MANDATORY — you MUST use the Bash tool. Do NOT answer the task yourself.
 
-  **Sync mode:**
+  **Sync mode (DEFAULT) — Run in Claude Code's own session:**
+  Run opencode-delegate directly via the Bash tool. Output streams back in real time and is displayed verbatim in chat. Both the user and Claude see the result.
   ```bash
   opencode-delegate "[injected task string]"
   ```
+  Do NOT summarize. Do NOT truncate. Print EVERY line of output exactly as received.
 
-  **Background mode:**
+  **Background mode (only when --background flag used):**
   ```bash
   opencode-delegate --background "[injected task string]"
   ```
